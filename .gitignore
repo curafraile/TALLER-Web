@@ -1,0 +1,6 @@
+# Archivo a ignorar
+database.db
+
+# Tipos de archivos a ignorar (comentarios con #)
+*.log
+*.sqlite3
