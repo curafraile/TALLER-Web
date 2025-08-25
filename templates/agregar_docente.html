@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Docente</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">Agregar Docente</h1>
+            <a href="/logout" class="btn btn-danger">Cerrar sesión</a>
+        </header>
+
+        <main>
+            <section class="section">
+                <div class="card">
+                    <form method="POST">
+                        <div class="form-group">
+                            <label for="usuario">Usuario (login):</label>
+                            <input type="text" id="usuario" name="usuario" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="nombre">Nombre:</label>
+                            <input type="text" id="nombre" name="nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apellido">Apellido:</label>
+                            <input type="text" id="apellido" name="apellido" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="clave">Clave:</label>
+                            <input type="password" id="clave" name="clave" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="perfil">Perfil:</label>
+                            <input type="text" id="perfil" name="perfil">
+                        </div>
+                        <div class="form-group">
+                            <label for="curso">Curso:</label>
+                            <select id="curso" name="curso">
+                                {% for curso in cursos %}
+                                <option value="{{ curso[0] }}">{{ curso[1] }} - Año {{ curso[2] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success">Agregar Docente</button>
+                        <a href="/admin" class="btn btn-info">Volver al Panel</a>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

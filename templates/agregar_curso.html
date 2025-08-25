@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Curso</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">Agregar Curso</h1>
+            <a href="/logout" class="btn btn-danger">Cerrar sesión</a>
+        </header>
+
+        <main>
+            <section class="section">
+                <div class="card">
+                    <form method="POST">
+                        <div class="form-group">
+                            <label for="nombre">Nombre del curso:</label>
+                            <input type="text" id="nombre" name="nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="año">Año:</label>
+                            <input type="number" id="año" name="año" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">Agregar Curso</button>
+                        <a href="/admin" class="btn btn-info">Volver al Panel</a>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

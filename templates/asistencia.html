@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">Registrar Asistencia</h1>
+            <a href="/logout" class="btn btn-danger">Cerrar sesión</a>
+        </header>
+
+        <main>
+            <a href="/docente" class="btn btn-info">Volver a Mis Cursos</a>
+            <section class="section">
+                <h2>Asistencia Semanal</h2>
+                <div class="card">
+                    <nav class="semana-nav">
+                        <a href="/asistencia/{{ curso_id }}?inicio={{ semana_anterior.isoformat() }}" class="btn">&lt;&lt; Semana anterior</a>
+                        <span class="fecha-lunes">
+                            {{ fechas[0][0].strftime("%d/%m/%Y") }}
+                        </span>
+                        <a href="/asistencia/{{ curso_id }}?inicio={{ semana_siguiente.isoformat() }}" class="btn">Semana siguiente &gt;&gt;</a>
+                    </nav>
+
+                    <form method="POST">
+                        <table class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Alumno</th>
+                                    {% for fecha, nombre_dia in fechas %}
+                                        <th>{{ nombre_dia }}<br>{{ fecha.strftime("%d/%m") }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alumno in alumnos %}
+                                <tr>
+                                    <td>{{ alumno[2] }}, {{ alumno[1] }}</td>
+                                    {% for fecha, nombre_dia in fechas %}
+                                    <td>
+                                        <input type="checkbox" name="asistencia_{{ alumno[0] }}_{{ fecha.isoformat() }}" {% if asistencia[alumno[0]][fecha] == 1 %}checked{% endif %}>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <br>
+                        <button type="submit" class="btn btn-success">Guardar Asistencia</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

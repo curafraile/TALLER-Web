@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración - Gestión Académica</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">Panel de Administración</h1>
+            <a href="/logout" class="btn btn-danger">Cerrar sesión</a>
+        </header>
+
+        <main>
+            <section class="section">
+                <h2>Acciones Rápidas</h2>
+                <nav class="grid-container">
+                    <a href="/agregar_curso" class="card card-action btn-action">
+                        <h3>Agregar Curso</h3>
+                    </a>
+                    <a href="/agregar_docente" class="card card-action btn-action">
+                        <h3>Agregar Docente</h3>
+                    </a>
+                    <a href="/agregar_alumno" class="card card-action btn-action">
+                        <h3>Agregar Alumno</h3>
+                    </a>
+                </nav>
+            </section>
+
+            <section class="section">
+                <h2>Gestión de Cursos</h2>
+                <div class="grid-container">
+                    {% for curso in cursos %}
+                    <article class="card">
+                        <h3>{{ curso[1] }} - Año {{ curso[2] }}</h3>
+                        <div class="card-actions">
+                            <a href="/exportar_notas/{{ curso[0] }}" class="btn btn-info">Exportar Notas</a>
+                            <form action="/eliminar_curso/{{ curso[0] }}" method="post" class="inline">
+                                <button type="submit" class="btn btn-danger">Eliminar</button>
+                            </form>
+                        </div>
+
+                        <nav class="semana-nav" aria-label="Navegación de asistencia por semana">
+                            <button type="button" class="btn" onclick="cambiarSemana({{ curso[0] }}, -7)">&#8592;</button>
+                            <span class="fecha-lunes" id="texto_fecha_{{ curso[0] }}">{{ fecha_inicio_default }}</span>
+                            <button type="button" class="btn" onclick="cambiarSemana({{ curso[0] }}, 7)">&#8594;</button>
+                            <a id="link_asistencia_{{ curso[0] }}" href="/exportar_asistencia/{{ curso[0] }}?inicio={{ fecha_inicio_default }}" class="btn btn-info">Exportar Asistencia</a>
+                        </nav>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Gestión de Docentes</h2>
+                <div class="grid-container">
+                    {% for docente in docentes %}
+                    <article class="card">
+                        <h3>{{ docente[2] }}, {{ docente[1] }}</h3>
+                        <p><strong>Usuario:</strong> {{ docente[3] }}</p>
+                        <p>
+                            <strong>Curso:</strong>
+                            {% if docente[4] %}
+                                {{ docente[4] }} - Año {{ docente[5] }}
+                            {% else %}
+                                Sin curso asignado
+                            {% endif %}
+                        </p>
+                        <form action="/eliminar_docente/{{ docente[0] }}" method="post" class="inline">
+                            <button type="submit" class="btn btn-danger">Eliminar</button>
+                        </form>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>Gestión de Alumnos</h2>
+                <div class="grid-container">
+                    {% for curso_id, curso in alumnos_curso.items() %}
+                    <article class="card">
+                        <h3 class="clickable" onclick="toggleAlumnos('curso_{{ curso_id }}')">
+                            {{ curso.nombre }} - Año {{ curso.año }}
+                        </h3>
+                        <a href="/exportar_alumnos/{{ curso_id }}" class="btn btn-info">Exportar Alumnos</a>
+                        <ul id="curso_{{ curso_id }}" class="curso-alumnos">
+                            {% for alumno in curso.alumnos %}
+                            <li>
+                                {{ alumno.apellido }}, {{ alumno.nombre }}
+                                <form action="/eliminar_alumno/{{ alumno.id }}" method="post" class="inline">
+                                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>

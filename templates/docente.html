@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Docente</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">Panel de Docente</h1>
+            <a href="/logout" class="btn btn-danger">Cerrar sesión</a>
+        </header>
+
+        <main>
+            <section class="section">
+                <h2>Mis Cursos Asignados</h2>
+                <div class="grid-container">
+                    {% for curso_id, curso_nombre, curso_año in asignaciones %}
+                    <div class="card">
+                        <h3>{{ curso_nombre }} - Año {{ curso_año }}</h3>
+                        <div class="card-actions">
+                            <a href="/asistencia/{{ curso_id }}" class="btn btn-primary">Registrar Asistencia</a>
+                            <a href="/notas/{{ curso_id }}" class="btn btn-primary">Registrar Notas</a>
+                        </div>
+                        <div class="card-exports">
+                             <a href="/exportar_notas/{{ curso_id }}" class="btn btn-info">Exportar Notas</a>
+                            <form action="/exportar_asistencia/{{ curso_id }}" method="get" class="inline">
+                                <input type="date" name="inicio" value="{{ today }}">
+                                <button type="submit" class="btn btn-info">Exportar Asistencia</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
