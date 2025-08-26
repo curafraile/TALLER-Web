@@ -139,7 +139,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 usuario TEXT UNIQUE,
                 nombre TEXT,
-                apellido TEXT TEXT,
+                apellido TEXT,
                 rol TEXT,
                 clave TEXT,
                 perfil TEXT
@@ -211,8 +211,10 @@ def init_db():
     cur.close()
 
 
-with app.app_context():
-    init_db()
+# # COMENTARIO: Esta línea causaba el problema de que los datos se borraban en cada reinicio.
+# # La base de datos de producción debe ser inicializada manualmente una sola vez.
+# with app.app_context():
+#     init_db()
 
 
 # ================== Login ==================
