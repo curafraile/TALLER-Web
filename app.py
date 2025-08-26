@@ -1,10 +1,10 @@
 import os
 import sqlite3
 import psycopg2
-from flask import Flask, render_template, request, redirect, session, send_file, g
+from flask import Flask, render_template, request, redirect, session, send_file, g, url_for
 from docx import Document
 from io import BytesIO
-from datetime import date, timedelta
+from datetime import date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "your-super-secret-key-here")
@@ -14,7 +14,7 @@ def get_db():
     if 'db' not in g:
         DATABASE_URL = os.environ.get('DATABASE_URL')
         if DATABASE_URL:
-            # Conexión a PostgreSQL (producción)
+            # PostgreSQL (producción)
             try:
                 g.db = psycopg2.connect(DATABASE_URL)
                 g.db_type = 'postgresql'
@@ -24,7 +24,7 @@ def get_db():
                 g.db_type = 'sqlite'
                 g.db.execute('PRAGMA foreign_keys = ON')
         else:
-            # Conexión local SQLite
+            # SQLite local
             g.db = sqlite3.connect('database.db')
             g.db_type = 'sqlite'
             g.db.execute('PRAGMA foreign_keys = ON')
@@ -40,7 +40,7 @@ def close_connection(exception):
 def init_db():
     conn = get_db()
     cur = conn.cursor()
-
+    
     if g.db_type == 'sqlite':
         cur.execute("""CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,11 +88,13 @@ def init_db():
             presente INTEGER,
             FOREIGN KEY(alumno_id) REFERENCES alumnos(id)
         )""")
+        # Crear admin si no existe
         cur.execute("SELECT * FROM usuarios WHERE rol='admin'")
         if not cur.fetchone():
             cur.execute("INSERT INTO usuarios (usuario, nombre, apellido, rol, clave, perfil) VALUES (?,?,?,?,?,?)",
                         ("admin", "Admin", "Taller", "admin", "1234", ""))
-    else:  # PostgreSQL
+    else:
+        # PostgreSQL
         cur.execute("""CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
             usuario TEXT UNIQUE,
@@ -162,47 +164,59 @@ def login():
         if usuario:
             session["usuario_id"] = usuario[0]
             session["rol"] = usuario[4]
-            return redirect("/admin" if usuario[4]=="admin" else "/docente")
+            return redirect(url_for("admin") if usuario[4]=="admin" else url_for("docente"))
         else:
             return "Usuario o clave incorrecta"
     return render_template("login.html")
 
-# ================== Control de exportaciones ==================
+# ================== Control de roles ==================
 def check_admin():
-    return "rol" in session and session["rol"] == "admin"
+    return session.get("rol") == "admin"
 
 def check_docente():
-    return "rol" in session and session["rol"] == "docente"
+    return session.get("rol") == "docente"
+
+# ================== Admin ==================
+@app.route("/admin")
+def admin():
+    if not check_admin():
+        return redirect(url_for("login"))
+    return render_template("admin.html")
 
 # ================== Exportar Notas ==================
 @app.route("/exportar_notas/<int:curso_id>")
 def exportar_notas(curso_id):
     if not check_admin():
-        return redirect("/")
-    # --- resto del código igual que tu versión original ---
-    # (Document, tabla, fetch de notas y send_file)
+        return redirect(url_for("login"))
+    # TODO: Lógica de exportación
     ...
 
 # ================== Exportar Asistencia ==================
 @app.route("/exportar_asistencia/<int:curso_id>")
 def exportar_asistencia(curso_id):
     if not check_admin():
-        return redirect("/")
-    # --- resto igual ---
+        return redirect(url_for("login"))
+    # TODO: Lógica de exportación
     ...
 
 # ================== Docente ==================
 @app.route("/docente")
 def docente():
     if not check_docente():
-        return redirect("/")
+        return redirect(url_for("login"))
     docente_id = session["usuario_id"]
     conn = get_db()
     cur = conn.cursor()
     if g.db_type=='sqlite':
-        cur.execute("SELECT dc.id, c.nombre, c.año, c.id FROM docente_cursos dc JOIN cursos c ON c.id=dc.curso_id WHERE dc.docente_id=?",(docente_id,))
+        cur.execute("""SELECT dc.id, c.nombre, c.año, c.id 
+                       FROM docente_cursos dc 
+                       JOIN cursos c ON c.id=dc.curso_id 
+                       WHERE dc.docente_id=?""", (docente_id,))
     else:
-        cur.execute("SELECT dc.id, c.nombre, c.año, c.id FROM docente_cursos dc JOIN cursos c ON c.id=dc.curso_id WHERE dc.docente_id=%s",(docente_id,))
+        cur.execute("""SELECT dc.id, c.nombre, c.año, c.id 
+                       FROM docente_cursos dc 
+                       JOIN cursos c ON c.id=dc.curso_id 
+                       WHERE dc.docente_id=%s""", (docente_id,))
     asignaciones_raw = cur.fetchall()
     cur.close()
     asignaciones = [(r[3], r[1], r[2]) for r in asignaciones_raw]
@@ -213,7 +227,8 @@ def docente():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("/")
+    return redirect(url_for("login"))
 
+# ================== Run ==================
 if __name__ == "__main__":
     app.run(debug=True)
