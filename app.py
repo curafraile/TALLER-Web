@@ -1,157 +1,114 @@
-import os
 from flask import Flask, render_template, request, redirect, session, send_file, g
+import sqlite3
 from docx import Document
 from io import BytesIO
 from datetime import date, timedelta
-import sqlite3
-try:
-    import psycopg2
-    HAS_POSTGRES = True
-except ImportError:
-    HAS_POSTGRES = False
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'clave_secreta')
-
-# Obtiene la URL de la base de datos de la variable de entorno de Render
-DATABASE_URL = os.environ.get('DATABASE_URL')
-# Usa un archivo SQLite local si DATABASE_URL no está configurada
-DATABASE_LOCAL_PATH = "database.db"
+app.secret_key = "clave_secreta"
 
 # ================== Base de datos ==================
+DATABASE = "database.db"
+
 
 def get_db():
-    """Obtiene una conexión a la base de datos (PostgreSQL o SQLite)."""
-    if 'db' not in g:
-        if DATABASE_URL and HAS_POSTGRES:
-            print("Conectando a la base de datos de PostgreSQL (Supabase)...")
-            g.db = psycopg2.connect(DATABASE_URL)
-            g.db_type = 'postgres'
-        else:
-            print("Conectando a la base de datos local de SQLite...")
-            g.db = sqlite3.connect(DATABASE_LOCAL_PATH)
-            g.db_type = 'sqlite'
-    return g.db
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+    return db
 
-def get_cursor():
-    """Obtiene un cursor para ejecutar comandos."""
-    con = get_db()
-    return con.cursor()
-
-def commit_and_close():
-    """Guarda los cambios y cierra la conexión."""
-    db = g.pop('db', None)
-    if db is not None:
-        db.commit()
-        db.close()
 
 @app.teardown_appcontext
-def close_db_connection(exception):
-    """Cierra la conexión al final de la solicitud."""
-    db = g.pop('db', None)
+def close_connection(exception):
+    db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
+
 def init_db():
-    """Inicializa la base de datos y crea las tablas si no existen."""
-    con = None
-    try:
+    with app.app_context():
         con = get_db()
         cur = con.cursor()
-        
-        # SQL para PostgreSQL (SERIAL) y SQLite (INTEGER PRIMARY KEY AUTOINCREMENT)
-        sql_users = """
+
+        # ... (Tu código de creación de tablas aquí) ...
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS usuarios (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 usuario TEXT UNIQUE,
                 nombre TEXT,
                 apellido TEXT,
                 rol TEXT,
                 clave TEXT,
                 perfil TEXT
-            );
-        """
-        sql_cursos = """
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS cursos (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT,
                 año INTEGER
-            );
-        """
-        sql_alumnos = """
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS alumnos (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT,
                 apellido TEXT,
                 curso_id INTEGER,
                 FOREIGN KEY(curso_id) REFERENCES cursos(id)
-            );
-        """
-        sql_docente_cursos = """
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS docente_cursos (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 docente_id INTEGER,
                 curso_id INTEGER,
                 FOREIGN KEY(docente_id) REFERENCES usuarios(id),
                 FOREIGN KEY(curso_id) REFERENCES cursos(id)
-            );
-        """
-        sql_notas = """
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS notas (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 alumno_id INTEGER,
                 docente_id INTEGER,
                 curso_id INTEGER,
                 nota REAL,
                 fecha TEXT,
-                FOREIGN KEY(alumno_id) REFERENCES alumnos(id),
-                FOREIGN KEY(docente_id) REFERENCES usuarios(id),
-                FOREIGN KEY(curso_id) REFERENCES cursos(id)
-            );
-        """
-        sql_asistencia = """
+                FOREIGN KEY(alumno_id) REFERENCES alumnos(id)
+            )
+        """)
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS asistencia (
-                id %s,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 alumno_id INTEGER,
                 docente_id INTEGER,
                 curso_id INTEGER,
                 fecha TEXT,
                 presente INTEGER,
-                FOREIGN KEY(alumno_id) REFERENCES alumnos(id),
-                FOREIGN KEY(docente_id) REFERENCES usuarios(id),
-                FOREIGN KEY(curso_id) REFERENCES cursos(id)
-            );
-        """
+                FOREIGN KEY(alumno_id) REFERENCES alumnos(id)
+            )
+        """)
 
-        primary_key_syntax = "SERIAL PRIMARY KEY" if g.db_type == 'postgres' else "INTEGER PRIMARY KEY AUTOINCREMENT"
-        
-        cur.execute(sql_users % primary_key_syntax)
-        cur.execute(sql_cursos % primary_key_syntax)
-        cur.execute(sql_alumnos % primary_key_syntax)
-        cur.execute(sql_docente_cursos % primary_key_syntax)
-        cur.execute(sql_notas % primary_key_syntax)
-        cur.execute(sql_asistencia % primary_key_syntax)
-
-        # Revisa si el usuario admin existe
+        # ... (Tu código de creación de usuario admin por defecto) ...
         cur.execute("SELECT * FROM usuarios WHERE rol='admin'")
         if not cur.fetchone():
-            cur.execute("INSERT INTO usuarios (usuario, nombre, apellido, rol, clave, perfil) VALUES (?, ?, ?, ?, ?, ?)",
-                        ("admin", "Admin", "Taller", "admin", "1234", ""))
+            cur.execute("""
+                INSERT INTO usuarios (usuario, nombre, apellido, rol, clave, perfil)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ("admin", "Admin", "Taller", "admin", "1234", ""))
             print("Usuario admin creado: usuario=admin, clave=1234")
-            
+
         con.commit()
 
-    except Exception as e:
-        print(f"Error al inicializar la base de datos: {e}")
-        if con:
-            con.rollback()
-    finally:
-        if con:
-            con.close()
 
-# Inicializa la base de datos al iniciar la aplicación
-with app.app_context():
-    init_db()
+init_db()
+
 
 # ================== Login ==================
 @app.route("/", methods=["GET", "POST"])
@@ -159,7 +116,8 @@ def login():
     if request.method == "POST":
         usuario_form = request.form["usuario"]
         clave = request.form["clave"]
-        cur = get_cursor()
+        con = get_db()
+        cur = con.cursor()
         cur.execute("SELECT * FROM usuarios WHERE usuario=? AND clave=?", (usuario_form, clave))
         usuario = cur.fetchone()
         if usuario:
@@ -178,7 +136,8 @@ def login():
 @app.route("/admin")
 def admin():
     if "rol" in session and session["rol"] == "admin":
-        cur = get_cursor()
+        con = get_db()
+        cur = con.cursor()
 
         cur.execute("SELECT * FROM cursos")
         cursos = cur.fetchall()
@@ -234,9 +193,10 @@ def agregar_curso():
         if request.method == "POST":
             nombre = request.form["nombre"]
             año = request.form["año"]
-            cur = get_cursor()
+            con = get_db()
+            cur = con.cursor()
             cur.execute("INSERT INTO cursos (nombre, año) VALUES (?,?)", (nombre, año))
-            get_db().commit()
+            con.commit()
             return redirect("/admin")
         return render_template("agregar_curso.html")
     return redirect("/")
@@ -246,7 +206,8 @@ def agregar_curso():
 @app.route("/agregar_docente", methods=["GET", "POST"])
 def agregar_docente():
     if "rol" in session and session["rol"] == "admin":
-        cur = get_cursor()
+        con = get_db()
+        cur = con.cursor()
         cur.execute("SELECT * FROM cursos")
         cursos = cur.fetchall()
 
@@ -264,19 +225,17 @@ def agregar_docente():
             if usuario_existente:
                 docente_id = usuario_existente[0]
             else:
-                cur.execute("INSERT INTO usuarios (usuario, nombre, apellido, rol, clave, perfil) VALUES (?, ?, ?, ?, ?, ?)",
-                            (usuario, nombre, apellido, "docente", clave, perfil))
-                if get_db()._database_type == 'sqlite':
-                    docente_id = cur.lastrowid
-                else: # Postgres
-                    cur.execute("SELECT id FROM usuarios WHERE usuario=?", (usuario,))
-                    docente_id = cur.fetchone()[0]
+                cur.execute(
+                    "INSERT INTO usuarios (usuario, nombre, apellido, rol, clave, perfil) VALUES (?,?,?,?,?,?)",
+                    (usuario, nombre, apellido, "docente", clave, perfil)
+                )
+                docente_id = cur.lastrowid
 
             cur.execute("SELECT * FROM docente_cursos WHERE docente_id=? AND curso_id=?", (docente_id, curso_id))
             if not cur.fetchone():
                 cur.execute("INSERT INTO docente_cursos (docente_id, curso_id) VALUES (?,?)", (docente_id, curso_id))
 
-            get_db().commit()
+            con.commit()
             return redirect("/admin")
 
         return render_template("agregar_docente.html", cursos=cursos)
@@ -287,15 +246,17 @@ def agregar_docente():
 @app.route("/agregar_alumno", methods=["GET", "POST"])
 def agregar_alumno():
     if "rol" in session and session["rol"] == "admin":
-        cur = get_cursor()
+        con = get_db()
+        cur = con.cursor()
         cur.execute("SELECT * FROM cursos")
         cursos = cur.fetchall()
         if request.method == "POST":
             nombre = request.form["nombre"]
             apellido = request.form["apellido"]
             curso_id = request.form["curso"]
-            cur.execute("INSERT INTO alumnos (nombre, apellido, curso_id) VALUES (?,?,?)", (nombre, apellido, curso_id))
-            get_db().commit()
+            cur.execute("INSERT INTO alumnos (nombre, apellido, curso_id) VALUES (?,?,?)",
+                        (nombre, apellido, curso_id))
+            con.commit()
             return redirect("/admin")
         return render_template("agregar_alumno.html", cursos=cursos)
     return redirect("/")
@@ -306,7 +267,8 @@ def agregar_alumno():
 def docente():
     if "rol" in session and session["rol"] == "docente":
         docente_id = session["usuario_id"]
-        cur = get_cursor()
+        con = get_db()
+        cur = con.cursor()
         cur.execute("""
             SELECT dc.id, c.nombre, c.año, c.id
             FROM docente_cursos dc
@@ -328,43 +290,24 @@ def docente():
 def notas(curso_id):
     if "rol" in session and session["rol"] == "docente":
         docente_id = session["usuario_id"]
-        cur = get_cursor()
-        cur.execute("SELECT id, nombre, apellido FROM alumnos WHERE curso_id=? ORDER BY apellido, nombre", (curso_id,))
+        con = get_db()
+        cur = con.cursor()
+        cur.execute("SELECT * FROM alumnos WHERE curso_id=?", (curso_id,))
         alumnos = cur.fetchall()
 
         if request.method == "POST":
             fecha = date.today().isoformat()
             for alumno in alumnos:
-                nota_str = request.form.get(f"nota_{alumno[0]}")
-                if nota_str:
-                    try:
-                        nota = float(nota_str)
-                        cur.execute(
-                            "INSERT INTO notas (alumno_id, docente_id, curso_id, nota, fecha) VALUES (?,?,?,?,?)",
-                            (alumno[0], docente_id, curso_id, nota, fecha)
-                        )
-                    except (ValueError, Exception) as e:
-                        print(f"Error al procesar la nota para el alumno {alumno[0]}: {e}")
-            get_db().commit()
+                nota = request.form.get(f"nota_{alumno[0]}")
+                if nota:
+                    cur.execute(
+                        "INSERT INTO notas (alumno_id, docente_id, curso_id, nota, fecha) VALUES (?,?,?,?,?)",
+                        (alumno[0], docente_id, curso_id, float(nota), fecha)
+                    )
+            con.commit()
             return "Notas registradas correctamente"
 
-        # Carga las notas existentes para mostrarlas en el formulario
-        cur.execute("SELECT alumno_id, nota FROM notas WHERE curso_id=?", (curso_id,))
-        notas_existentes_raw = cur.fetchall()
-        notas_existentes = {alumno_id: nota for alumno_id, nota in notas_existentes_raw}
-
-        alumnos_con_notas = []
-        for alumno in alumnos:
-            alumno_id = alumno[0]
-            nota = notas_existentes.get(alumno_id)
-            alumnos_con_notas.append({
-                'id': alumno_id,
-                'nombre': alumno[1],
-                'apellido': alumno[2],
-                'nota': nota
-            })
-
-        return render_template("notas.html", alumnos=alumnos_con_notas, curso_id=curso_id)
+        return render_template("notas.html", alumnos=alumnos, curso_id=curso_id)
     return redirect("/")
 
 
@@ -385,9 +328,10 @@ def asistencia(curso_id):
 
     fechas_semana = [inicio_semana + timedelta(days=i) for i in range(5)]
 
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
 
-    cur.execute("SELECT id, nombre, apellido FROM alumnos WHERE curso_id=? ORDER BY apellido, nombre", (curso_id,))
+    cur.execute("SELECT id, nombre, apellido FROM alumnos WHERE curso_id=?", (curso_id,))
     alumnos = cur.fetchall()
 
     if request.method == "POST":
@@ -406,19 +350,19 @@ def asistencia(curso_id):
                         INSERT INTO asistencia (alumno_id, docente_id, curso_id, fecha, presente)
                         VALUES (?, ?, ?, ?, ?)
                     """, (alumno[0], docente_id, curso_id, f.isoformat(), 1 if presente else 0))
-        get_db().commit()
+        con.commit()
         return redirect(f"/asistencia/{curso_id}?inicio={inicio_semana.isoformat()}")
 
-    asistencia_semana = {}
+    asistencia = {}
     for alumno in alumnos:
-        asistencia_semana[alumno[0]] = {}
+        asistencia[alumno[0]] = {}
         for f in fechas_semana:
             cur.execute("""
                 SELECT presente FROM asistencia
                 WHERE alumno_id=? AND docente_id=? AND curso_id=? AND fecha=?
             """, (alumno[0], docente_id, curso_id, f.isoformat()))
             res = cur.fetchone()
-            asistencia_semana[alumno[0]][f] = res[0] if res else 0
+            asistencia[alumno[0]][f] = res[0] if res else 0
 
     dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
     fechas_semana_nombres = [(f, dias_semana[f.weekday()]) for f in fechas_semana]
@@ -430,7 +374,7 @@ def asistencia(curso_id):
         "asistencia.html",
         alumnos=alumnos,
         fechas=fechas_semana_nombres,
-        asistencia=asistencia_semana,
+        asistencia=asistencia,
         curso_id=curso_id,
         semana_anterior=semana_anterior,
         semana_siguiente=semana_siguiente
@@ -440,7 +384,8 @@ def asistencia(curso_id):
 # ================== Exportar Notas ==================
 @app.route("/exportar_notas/<int:curso_id>")
 def exportar_notas(curso_id):
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
 
     cur.execute("SELECT nombre, año FROM cursos WHERE id=?", (curso_id,))
     curso = cur.fetchone()
@@ -490,7 +435,8 @@ def exportar_asistencia(curso_id):
     dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
     fechas_semana_nombres = [(f, dias_semana[f.weekday()]) for f in fechas_semana]
 
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
 
     cur.execute("SELECT nombre, año FROM cursos WHERE id=?", (curso_id,))
     curso = cur.fetchone()
@@ -552,7 +498,8 @@ def exportar_asistencia(curso_id):
 def exportar_alumnos(curso_id):
     doc = Document()
 
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
     cur.execute("SELECT nombre, año FROM cursos WHERE id=?", (curso_id,))
     curso = cur.fetchone()
     if not curso:
@@ -587,36 +534,34 @@ def exportar_alumnos(curso_id):
 # ================== Eliminar Curso ==================
 @app.route("/eliminar_curso/<int:curso_id>", methods=["POST"])
 def eliminar_curso(curso_id):
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
     cur.execute("DELETE FROM asistencia WHERE curso_id=?", (curso_id,))
-    cur.execute("DELETE FROM notas WHERE curso_id=?", (curso_id,))
     cur.execute("DELETE FROM alumnos WHERE curso_id=?", (curso_id,))
-    cur.execute("DELETE FROM docente_cursos WHERE curso_id=?", (curso_id,))
     cur.execute("DELETE FROM cursos WHERE id=?", (curso_id,))
-    get_db().commit()
+    con.commit()
     return redirect("/admin")
 
 
 # ================== Eliminar Docente ==================
 @app.route("/eliminar_docente/<int:docente_id>", methods=["POST"])
 def eliminar_docente(docente_id):
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
     cur.execute("DELETE FROM docente_cursos WHERE docente_id=?", (docente_id,))
-    cur.execute("DELETE FROM notas WHERE docente_id=?", (docente_id,))
-    cur.execute("DELETE FROM asistencia WHERE docente_id=?", (docente_id,))
     cur.execute("DELETE FROM usuarios WHERE id=? AND rol='docente'", (docente_id,))
-    get_db().commit()
+    con.commit()
     return redirect("/admin")
 
 
 # ================== Eliminar Alumno ==================
 @app.route("/eliminar_alumno/<int:alumno_id>", methods=["POST"])
 def eliminar_alumno(alumno_id):
-    cur = get_cursor()
+    con = get_db()
+    cur = con.cursor()
     cur.execute("DELETE FROM asistencia WHERE alumno_id=?", (alumno_id,))
-    cur.execute("DELETE FROM notas WHERE alumno_id=?", (alumno_id,))
     cur.execute("DELETE FROM alumnos WHERE id=?", (alumno_id,))
-    get_db().commit()
+    con.commit()
     return redirect("/admin")
 
 
@@ -628,4 +573,6 @@ def logout():
 
 
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True)
+
