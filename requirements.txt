@@ -10,4 +10,5 @@ Werkzeug==3.0.6
 zipp==3.20.2
 gunicorn
 python-docx
+python-dotenv
 psycopg2-binary
